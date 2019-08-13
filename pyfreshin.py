@@ -4,6 +4,7 @@ import argparse
 import sys
 import re
 import platform
+import json
 
 def get_args():
     argsetup = argparse.ArgumentParser()
@@ -90,6 +91,82 @@ def get_indented_commands(lines, index):
             return commands
     return commands
 
+def install_command(ii, distro):
+    if distro == "ubuntu":
+        return "sudo apt-get -y -f install " + ii
+    elif distro == "arch":
+        return "sudo pacman -S " + ii
+
+def setup_git_commands(ii, git_info):
+    commands = []
+    clone_dir = "/tmp/pyfreshin/" + ii # + unix timestamp
+    if "install-dir" in git_info:
+        clone_dir = git_info["install-dir"]
+    commands.append("git clone " + git_info["repo"] + " " + clone_dir)
+    commands.append("cd " + clone_dir)
+    commands = commands + git_info["commands"]
+    return commands
+
+def setup_shell_commands(ii, shell_info):
+    return shell_info["commands"]
+
+def convert_to_commands(info, distro, cat_to_install = None):
+    commands = []
+    installed = []
+    categories = info["categories"]
+    dependencies = info["dependencies"]
+    git_installs = info["git-installs"]
+    shell_installs = info["shell-installs"]
+    install_as = info["install-as"]
+
+    def add_install(ii):
+        commands = []
+        if ii in install_as and distro in install_as[ii]:
+            to_install_as = install_as[ii][distro]
+            commands = [install_command(to_install_as, distro)]
+        elif ii in install_as and "all" in install_as[ii]:
+            to_install_as = install_as[ii]["all"]
+            commands = [install_command(to_install_as, distro)]
+        elif ii in git_installs and distro in git_installs[ii]:
+            commands = setup_git_commands(ii, git_installs[ii][distro])
+        elif ii in git_installs and "all" in git_installs[ii]:
+            commands = setup_git_commands(ii, git_installs[ii]["all"])
+        elif ii in shell_installs and distro in shell_installs[ii]:
+            commands = setup_shell_commands(ii, shell_installs[ii][distro])
+        elif ii in shell_installs and "all" in shell_installs[ii]:
+            commands = setup_shell_commands(ii, shell_installs[ii]["all"])
+        else:
+            commands = [(install_command(ii, distro))]
+        return commands
+
+    if git_installs:
+        installed.append("git")
+        commands = commands + add_install("git")
+
+    for cat in categories:
+        if not cat_to_install or cat in cat_to_install:
+            for ii in categories[cat]:
+                if ii in dependencies and "all" in dependencies[ii]:
+                    for jj in dependencies[ii]["all"]:
+                        if not jj in installed:
+                            commands = commands + add_install(jj)
+                            installed.append(jj)
+                elif ii in dependencies and distro in dependencies[ii]:
+                    for jj in dependencies[ii][distro]:
+                        if not jj in installed:
+                            commands = commands + add_install(jj)
+                            installed.append(jj)
+                if not ii in installed:
+                    commands = commands + add_install(ii)
+                    installed.append(ii)
+
+    print(commands)
+
+    return commands
+
+def print_nice(ii):
+    print(json.dumps(ii, sort_keys=True, indent=4, separators=(',', ': ')))
+
 def determine_distro():
     return "ubuntu"
 
@@ -99,8 +176,9 @@ def main():
     if args.distro:
         distro = args.distro
     info = parse_install_file(file_contents(args.file))
-    print(info)
-    # commands = convert_to_commands(info)
+    commands = convert_to_commands(info, distro)
+    print_nice(info)
+    print_nice(commands)
 
 if __name__ == "__main__":
     main()
