@@ -13,7 +13,7 @@ from collections import OrderedDict
 def get_args():
     argsetup = argparse.ArgumentParser()
     argsetup.add_argument("-d", "--distro", help="Specify a different distro", action="store")
-    argsetup.add_argument("-p", "--preview", help="Output commands instead of running them", action="store_true")
+    argsetup.add_argument("-s", "--show", help="Output commands instead of running them", action="store_true")
     argsetup.add_argument("-f", "--force", help="Install programs that are already installed", action="store_true")
     argsetup.add_argument("file", help="File to read dependencies from", action="store")
     args = argsetup.parse_args()
@@ -22,11 +22,18 @@ def get_args():
     return args
 
 def file_contents(filename):
+    '''
+    Return the contents of the file (if the file exists/can be read) and None
+    otherwise.
+    '''
     with open(filename, "r") as file:
         return file.read()
     return None
 
 def parse_install_file(contents):
+    '''
+    Parse a string into a dictionary representation.
+    '''
     categories = OrderedDict()
     dependencies = {}
     install_as = {}
@@ -103,6 +110,9 @@ def parse_install_file(contents):
             'installed-exes': installed_exes}
 
 def get_installed_packages(distro):
+    '''
+    Determine packages installed on this computer. Also includes executeables inside $PATH.
+    '''
     installed = set()
     paths = os.environ["PATH"].split(os.pathsep)
     for path in paths:
@@ -119,9 +129,16 @@ def get_installed_packages(distro):
     return installed
 
 def get_indented_packages(line):
+    '''
+    Returns all whitespace-separated words in a line.
+    '''
     return line.strip().split()
 
 def get_indented_commands(lines, index):
+    '''
+    Get all lines that are indented after the specified index, terminating once
+    a line no longer fits this criteria.
+    '''
     trimmed_lines = lines[index + 1:]
     commands = []
     for ii in trimmed_lines:
@@ -132,12 +149,18 @@ def get_indented_commands(lines, index):
     return commands
 
 def install_command(ii, distro):
+    '''
+    Get the command to install a program in the specified distro.
+    '''
     if distro == "ubuntu":
         return "sudo apt-get -y -f install " + ii
     elif distro == "arch":
         return "sudo pacman -S " + ii
 
 def setup_git_commands(ii, git_info):
+    '''
+    Given a package and git info, creates the commands to install it.
+    '''
     commands = []
     clone_dir = "/tmp/pyfreshin/" + ii # + unix timestamp
     if "install-dir" in git_info:
@@ -148,15 +171,26 @@ def setup_git_commands(ii, git_info):
     return commands
 
 def setup_shell_commands(ii, shell_info):
+    '''
+    Given a package and shell info, creates the commands to install it.
+    '''
     return shell_info["commands"]
 
-def add_repo_command(repo, distro):
+def repo_command(repo, distro):
+    '''
+    Get the command to add a package manager's repository in the specified
+    distro.
+    '''
     if distro == "ubuntu":
         return "sudo add-apt-repository -u -y " + repo
     else:
         return ""
 
 def distro_or_all(distro, ii, dictionary):
+    '''
+    Return the distro-specific or general entry from the dictionary, given a
+    package.
+    '''
     if ii in dictionary and distro in dictionary[ii]:
         return dictionary[ii][distro]
     elif ii in dictionary and "all" in dictionary[ii]:
@@ -176,11 +210,14 @@ def convert_to_commands(args, info, distro, preinstalled):
     installed_exes = info["installed-exes"]
 
     def install_commands(ii):
+        '''
+        Generate the commands required to install a package.
+        '''
         commands = []
 
         if ii in repositories and distro in repositories[ii]:
             repo = repositories[ii][distro]
-            commands.append(add_repo_command(repo, distro))
+            commands.append(repo_command(repo, distro))
 
         install_as_commands = distro_or_all(distro, ii, install_as)
         shell_install_commands = distro_or_all(distro, ii, shell_installs)
@@ -197,6 +234,9 @@ def convert_to_commands(args, info, distro, preinstalled):
         return commands
 
     def not_installed(ii):
+        '''
+        Returns true if a package is not installed.
+        '''
         if not ii in installed_exes:
             return not ii in preinstalled
         elif distro in installed_exes[ii]:
@@ -205,6 +245,10 @@ def convert_to_commands(args, info, distro, preinstalled):
             return not all([jj in preinstalled for jj in installed_exes[ii]["all"]])
 
     def ensure_installed(ii):
+        '''
+        Get the commands to install all of a package's dependencies and then
+        the package itself.
+        '''
         commands = []
         if not_installed(ii):
             if ii in dependencies and distro in dependencies[ii]:
@@ -230,6 +274,10 @@ def convert_to_commands(args, info, distro, preinstalled):
     return commands
 
 def filter_commands(commands, categories, cat_to_install = None, package_to_install = None):
+    '''
+    Filter out commands that either not meant to be installed or that belong to
+    categories that are not meant to be installed.
+    '''
     filtered = OrderedDict()
     for cat in categories:
         if (not cat_to_install or cat in cat_to_install):
@@ -239,16 +287,30 @@ def filter_commands(commands, categories, cat_to_install = None, package_to_inst
     return filtered
 
 def print_commands(commands):
+    '''
+    Print commands in a pretty way.
+    '''
     for cc in commands:
-        print(cc + ":")
-        for dd in commands[cc]:
-            print("    " + dd)
+        if len(commands[cc]) == 0:
+            print(cc + " (no commands)")
+        elif len(commands[cc]) == 1:
+            print(cc + ": " + commands[cc][0])
+        else:
+            print(cc + ":")
+            for dd in commands[cc]:
+                print("    " + dd)
 
 def determine_distro():
-    # stubbed for now!
+    '''
+    Determine the distro of your machine. Stubbed for now! Specify it in the
+    command line arguments.
+    '''
     return "ubuntu"
 
 def main():
+    '''
+    The main function.
+    '''
     args = get_args()
     distro = determine_distro()
     if args.distro:
@@ -260,7 +322,7 @@ def main():
     info = parse_install_file(file_contents(args.file))
     commands = convert_to_commands(args, info, distro, installed)
     commands_filtered = filter_commands(commands, info["categories"])
-    if args.preview:
+    if args.show:
         print_commands(commands_filtered)
 
 if __name__ == "__main__":
