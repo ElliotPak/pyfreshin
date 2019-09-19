@@ -1,4 +1,4 @@
-#!/usr/bin.env python2
+#!/usr/bin/env python3
 
 import argparse
 import sys
@@ -9,7 +9,7 @@ import json
 def get_args():
     argsetup = argparse.ArgumentParser()
     argsetup.add_argument("-d", "--distro", help="Specify a different distro", action="store")
-    argsetup.add_argument("-s", "--silent", help="Output commands instead of running them", action="store_true")
+    argsetup.add_argument("-p", "--preview", help="Output commands instead of running them", action="store_true")
     argsetup.add_argument("file", help="File to read dependencies from", action="store")
     args = argsetup.parse_args()
     if len(sys.argv) <= 1:
@@ -160,14 +160,13 @@ def convert_to_commands(info, distro, cat_to_install = None):
                     commands = commands + add_install(ii)
                     installed.append(ii)
 
-    print(commands)
-
     return commands
 
 def print_nice(ii):
     print(json.dumps(ii, sort_keys=True, indent=4, separators=(',', ': ')))
 
 def determine_distro():
+    # stubbed for now!
     return "ubuntu"
 
 def main():
@@ -176,9 +175,10 @@ def main():
     if args.distro:
         distro = args.distro
     info = parse_install_file(file_contents(args.file))
-    commands = convert_to_commands(info, distro)
-    print_nice(info)
-    print_nice(commands)
+    commands = convert_to_commands(args, info, distro)
+    if args.preview:
+        for ii in commands:
+            print(ii)
 
 if __name__ == "__main__":
     main()
