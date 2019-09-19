@@ -8,6 +8,7 @@ import json
 import subprocess
 import os
 import os.path
+from collections import OrderedDict
 
 def get_args():
     argsetup = argparse.ArgumentParser()
@@ -155,9 +156,9 @@ def add_repo_command(repo, distro):
     else:
         return ""
 
-def convert_to_commands(args, info, distro, preinstalled, cat_to_install = None):
-    commands = []
-    installed = []
+def convert_to_commands(args, info, distro, preinstalled):
+    commands = dict()
+    installed = set()
     categories = info["categories"]
     dependencies = info["dependencies"]
     git_installs = info["git-installs"]
@@ -166,8 +167,8 @@ def convert_to_commands(args, info, distro, preinstalled, cat_to_install = None)
     repositories = info["repositories"]
     installed_exes = info["installed-exes"]
 
-    def add_install(ii):
-        nonlocal commands
+    def install_commands(ii):
+        commands = []
 
         if ii in repositories and distro in repositories[ii]:
             repo = repositories[ii][distro]
@@ -189,7 +190,8 @@ def convert_to_commands(args, info, distro, preinstalled, cat_to_install = None)
             commands += setup_shell_commands(ii, shell_installs[ii]["all"])
         else:
             commands += [(install_command(ii, distro))]
-        installed.append(ii)
+        installed.add(ii)
+        return commands
 
     def not_installed(ii):
         if not ii in installed_exes:
@@ -200,27 +202,38 @@ def convert_to_commands(args, info, distro, preinstalled, cat_to_install = None)
             return not all([jj in preinstalled for jj in installed_exes[ii]["all"]])
 
     def ensure_installed(ii):
-        nonlocal commands
+        commands = []
         if not_installed(ii):
             if ii in dependencies and distro in dependencies[ii]:
                 for jj in dependencies[ii][distro]:
                     if not jj in installed:
-                        ensure_installed(jj)
+                        commands += ensure_installed(jj)
             elif ii in dependencies and "all" in dependencies[ii]:
                 for jj in dependencies[ii]["all"]:
                     if not jj in installed:
-                        ensure_installed(jj)
-            add_install(ii)
+                        commands += ensure_installed(jj)
+            commands += install_commands(ii)
+        return commands
 
     if git_installs:
         ensure_installed("git")
 
     for cat in categories:
-        if not cat_to_install or cat in cat_to_install:
-            for ii in categories[cat]:
-                ensure_installed(ii)
+        for ii in categories[cat]:
+            inst_commands = ensure_installed(ii)
+            if inst_commands:
+                commands[ii] = inst_commands
 
     return commands
+
+def filter_commands(commands, categories, cat_to_install = None, package_to_install = None):
+    filtered = OrderedDict()
+    for cat in categories:
+        if (not cat_to_install or cat in cat_to_install):
+            for ii in categories[cat]:
+                if (not package_to_install or ii in package_to_install) and ii in commands:
+                    filtered[ii] = commands[ii]
+    return filtered
 
 def print_nice(ii):
     print(json.dumps(ii, sort_keys=True, indent=4, separators=(',', ': ')))
@@ -240,9 +253,9 @@ def main():
         installed = get_installed_packages(distro)
     info = parse_install_file(file_contents(args.file))
     commands = convert_to_commands(args, info, distro, installed)
+    commands_filtered = filter_commands(commands, info["categories"], package_to_install=["vim"])
     if args.preview:
-        for ii in commands:
-            print(ii)
+        print_nice(commands_filtered)
 
 if __name__ == "__main__":
     main()
