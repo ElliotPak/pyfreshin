@@ -27,7 +27,7 @@ def file_contents(filename):
     return None
 
 def parse_install_file(contents):
-    categories = {}
+    categories = OrderedDict()
     dependencies = {}
     install_as = {}
     git_installs = {}
@@ -156,8 +156,16 @@ def add_repo_command(repo, distro):
     else:
         return ""
 
+def distro_or_all(distro, ii, dictionary):
+    if ii in dictionary and distro in dictionary[ii]:
+        return dictionary[ii][distro]
+    elif ii in dictionary and "all" in dictionary[ii]:
+        return dictionary[ii]["all"]
+    else:
+        return []
+
 def convert_to_commands(args, info, distro, preinstalled):
-    commands = dict()
+    commands = OrderedDict()
     installed = set()
     categories = info["categories"]
     dependencies = info["dependencies"]
@@ -174,22 +182,17 @@ def convert_to_commands(args, info, distro, preinstalled):
             repo = repositories[ii][distro]
             commands.append(add_repo_command(repo, distro))
 
-        if ii in install_as and distro in install_as[ii]:
-            to_install_as = install_as[ii][distro]
-            commands.append(install_command(to_install_as, distro))
-        elif ii in install_as and "all" in install_as[ii]:
-            to_install_as = install_as[ii]["all"]
-            commands.append(install_command(to_install_as, distro))
-        elif ii in git_installs and distro in git_installs[ii]:
-            commands += setup_git_commands(ii, git_installs[ii][distro])
-        elif ii in git_installs and "all" in git_installs[ii]:
-            commands += setup_git_commands(ii, git_installs[ii]["all"])
-        elif ii in shell_installs and distro in shell_installs[ii]:
-            commands += setup_shell_commands(ii, shell_installs[ii][distro])
-        elif ii in shell_installs and "all" in shell_installs[ii]:
-            commands += setup_shell_commands(ii, shell_installs[ii]["all"])
+        install_as_commands = distro_or_all(distro, ii, install_as)
+        shell_install_commands = distro_or_all(distro, ii, shell_installs)
+        git_install_commands = distro_or_all(distro, ii, git_installs)
+        if install_as_commands:
+            commands.append(install_as_commands)
+        elif git_install_commands:
+            commands += setup_git_commands(ii, git_install_commands)
+        elif git_install_commands:
+            commands += setup_shell_commands(ii, shell_install_commands)
         else:
-            commands += [(install_command(ii, distro))]
+            commands.append(install_command(ii, distro))
         installed.add(ii)
         return commands
 
@@ -235,8 +238,11 @@ def filter_commands(commands, categories, cat_to_install = None, package_to_inst
                     filtered[ii] = commands[ii]
     return filtered
 
-def print_nice(ii):
-    print(json.dumps(ii, sort_keys=True, indent=4, separators=(',', ': ')))
+def print_commands(commands):
+    for cc in commands:
+        print(cc + ":")
+        for dd in commands[cc]:
+            print("    " + dd)
 
 def determine_distro():
     # stubbed for now!
@@ -255,7 +261,7 @@ def main():
     commands = convert_to_commands(args, info, distro, installed)
     commands_filtered = filter_commands(commands, info["categories"])
     if args.preview:
-        print_nice(commands_filtered)
+        print_commands(commands_filtered)
 
 if __name__ == "__main__":
     main()
