@@ -32,6 +32,7 @@ def parse_install_file(contents):
     git_installs = {}
     shell_installs = {}
     repositories = {}
+    installed_exes = {}
     lines = contents.splitlines()
     for index, line in enumerate(lines):
         segments = line.split()
@@ -73,7 +74,7 @@ def parse_install_file(contents):
                     shell_installs[segments[2]] = {}
                 shell_installs[segments[2]][segments[1]] = inst
 
-            # install-shell PLATFORM PACKAGE_NAME URL [INSTALL_DIRECTORY]
+            # install-git PLATFORM PACKAGE_NAME URL [INSTALL_DIRECTORY]
             #     post-install-commands...
             elif segments[0] == "install-git" and len(segments) > 3:
                 inst = {'commands': get_indented_commands(lines, index),
@@ -83,12 +84,22 @@ def parse_install_file(contents):
                 if not segments[2] in git_installs:
                     git_installs[segments[2]] = {}
                 git_installs[segments[2]][segments[1]] = inst
+
+            # installs-executables PLATFORM PACKAGE_NAME
+            #     package1 package2 package3...
+            elif segments[0] == "installs-executables" and len(segments) > 2:
+                exes = get_indented_packages(lines[index + 1])
+                if not segments[2] in installed_exes:
+                    installed_exes[segments[2]] = {}
+                installed_exes[segments[2]][segments[1]] = exes
+
     return {'categories': categories,
             'dependencies': dependencies,
             'install-as': install_as,
             'git-installs': git_installs,
             'shell-installs': shell_installs,
-            'repositories': repositories}
+            'repositories': repositories,
+            'installed-exes': installed_exes}
 
 def get_installed_packages(distro):
     installed = set()
@@ -152,6 +163,7 @@ def convert_to_commands(args, info, distro, preinstalled, cat_to_install = None)
     shell_installs = info["shell-installs"]
     install_as = info["install-as"]
     repositories = info["repositories"]
+    installed_exes = info["installed-exes"]
 
     def add_install(ii):
         commands = []
@@ -178,21 +190,30 @@ def convert_to_commands(args, info, distro, preinstalled, cat_to_install = None)
             commands += [(install_command(ii, distro))]
         return commands
 
-    if git_installs:
+    def not_installed(ii):
+        if not ii in installed_exes:
+            return not ii in preinstalled
+        elif distro in installed_exes[ii]:
+            return not all([jj in preinstalled for jj in installed_exes[ii][distro]])
+        elif "all" in installed_exes[ii]:
+            return not all([jj in preinstalled for jj in installed_exes[ii]["all"]])
+
+
+    if git_installs and not_installed("git"):
         installed.append("git")
         commands = commands + add_install("git")
 
     for cat in categories:
         if not cat_to_install or cat in cat_to_install:
             for ii in categories[cat]:
-                if not ii in preinstalled:
-                    if ii in dependencies and "all" in dependencies[ii]:
-                        for jj in dependencies[ii]["all"]:
+                if not_installed(ii):
+                    if ii in dependencies and distro in dependencies[ii]:
+                        for jj in dependencies[ii][distro]:
                             if not jj in installed:
                                 commands = commands + add_install(jj)
                                 installed.append(jj)
-                    elif ii in dependencies and distro in dependencies[ii]:
-                        for jj in dependencies[ii][distro]:
+                    elif ii in dependencies and "all" in dependencies[ii]:
+                        for jj in dependencies[ii]["all"]:
                             if not jj in installed:
                                 commands = commands + add_install(jj)
                                 installed.append(jj)
