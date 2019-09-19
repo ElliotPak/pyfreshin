@@ -50,6 +50,19 @@ installs-executables all haskell-tools
     hindent
 ```
 
+This script will do the following:
+
+- Install git, vim, zsh, and tmux as normal
+- Install python3 as python on Arch systems and as python3 elsewhere
+- Install compton by cloning a git repository and running commands inside of
+  the cloned folder
+- Install a bunch of dependencies for compton before installing compton itself
+- Install stack by running a shell command (ensuring that curl is installed
+  beforehand)
+- Install haskell-tools after stack is installed by running a stack command
+- Not install haskell-tools if the executable `hindent` can be found on the
+  machine (unless forced, see command line arguments)
+
 Note that in general:
 
 - If a package is supplied somewhere (e.g. in a category or as a dependency),
