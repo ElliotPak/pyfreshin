@@ -105,9 +105,10 @@ def get_installed_packages(distro):
     installed = set()
     paths = os.environ["PATH"].split(os.pathsep)
     for path in paths:
-        for exe in os.listdir(path):
-            if os.access(os.path.join(path, exe), os.X_OK):
-                installed.add(exe)
+        if os.path.isdir(path):
+            for exe in os.listdir(path):
+                if os.access(os.path.join(path, exe), os.X_OK):
+                    installed.add(exe)
     if distro == "ubuntu":
         output = subprocess.check_output(["dpkg", "--get-selections"]).decode("utf-8")
         for ii in output.split('\n'):
