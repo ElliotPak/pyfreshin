@@ -167,7 +167,7 @@ def convert_to_commands(args, info, distro, preinstalled, cat_to_install = None)
     installed_exes = info["installed-exes"]
 
     def add_install(ii):
-        commands = []
+        nonlocal commands
 
         if ii in repositories and distro in repositories[ii]:
             repo = repositories[ii][distro]
@@ -189,7 +189,7 @@ def convert_to_commands(args, info, distro, preinstalled, cat_to_install = None)
             commands += setup_shell_commands(ii, shell_installs[ii]["all"])
         else:
             commands += [(install_command(ii, distro))]
-        return commands
+        installed.append(ii)
 
     def not_installed(ii):
         if not ii in installed_exes:
@@ -199,28 +199,26 @@ def convert_to_commands(args, info, distro, preinstalled, cat_to_install = None)
         elif "all" in installed_exes[ii]:
             return not all([jj in preinstalled for jj in installed_exes[ii]["all"]])
 
+    def ensure_installed(ii):
+        nonlocal commands
+        if not_installed(ii):
+            if ii in dependencies and distro in dependencies[ii]:
+                for jj in dependencies[ii][distro]:
+                    if not jj in installed:
+                        ensure_installed(jj)
+            elif ii in dependencies and "all" in dependencies[ii]:
+                for jj in dependencies[ii]["all"]:
+                    if not jj in installed:
+                        ensure_installed(jj)
+            add_install(ii)
 
-    if git_installs and not_installed("git"):
-        installed.append("git")
-        commands = commands + add_install("git")
+    if git_installs:
+        ensure_installed("git")
 
     for cat in categories:
         if not cat_to_install or cat in cat_to_install:
             for ii in categories[cat]:
-                if not_installed(ii):
-                    if ii in dependencies and distro in dependencies[ii]:
-                        for jj in dependencies[ii][distro]:
-                            if not jj in installed:
-                                commands = commands + add_install(jj)
-                                installed.append(jj)
-                    elif ii in dependencies and "all" in dependencies[ii]:
-                        for jj in dependencies[ii]["all"]:
-                            if not jj in installed:
-                                commands = commands + add_install(jj)
-                                installed.append(jj)
-                    if not ii in installed:
-                        commands = commands + add_install(ii)
-                        installed.append(ii)
+                ensure_installed(ii)
 
     return commands
 
