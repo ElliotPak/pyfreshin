@@ -27,6 +27,7 @@ def parse_install_file(contents):
     install_as = {}
     git_installs = {}
     shell_installs = {}
+    repositories = {}
     lines = contents.splitlines()
     for index, line in enumerate(lines):
         segments = line.split()
@@ -46,11 +47,17 @@ def parse_install_file(contents):
                     dependencies[segments[2]] = {}
                 dependencies[segments[2]][segments[1]] = deps
 
-            # install-as PACKAGE_NAME INSTALL_AS_NAME
+            # install-as PLATFORM PACKAGE_NAME INSTALL_AS_NAME
             elif segments[0] == "install-as" and len(segments) > 3:
                 if not segments[2] in install_as:
                     install_as[segments[2]] = {}
                 install_as[segments[2]][segments[1]] = segments[3]
+
+            # repository PLATFORM PACKAGE-NAME REPO-INFO
+            elif segments[0] == "repository" and len(segments) > 3:
+                if not segments[2] in install_as:
+                    repositories[segments[2]] = {}
+                repositories[segments[2]][segments[1]] = segments[3]
 
             # install-shell PLATFORM PACKAGE_NAME [RUN_DIRECTORY]
             #     commands...
@@ -76,7 +83,8 @@ def parse_install_file(contents):
             'dependencies': dependencies,
             'install-as': install_as,
             'git-installs': git_installs,
-            'shell-installs': shell_installs}
+            'shell-installs': shell_installs,
+            'repositories': repositories}
 
 def get_indented_packages(line):
     return line.strip().split()
@@ -110,7 +118,13 @@ def setup_git_commands(ii, git_info):
 def setup_shell_commands(ii, shell_info):
     return shell_info["commands"]
 
-def convert_to_commands(info, distro, cat_to_install = None):
+def add_repo_command(repo, distro):
+    if distro == "ubuntu":
+        return "sudo add-apt-repository -u -y " + repo
+    else:
+        return ""
+
+def convert_to_commands(args, info, distro, cat_to_install = None):
     commands = []
     installed = []
     categories = info["categories"]
@@ -118,25 +132,31 @@ def convert_to_commands(info, distro, cat_to_install = None):
     git_installs = info["git-installs"]
     shell_installs = info["shell-installs"]
     install_as = info["install-as"]
+    repositories = info["repositories"]
 
     def add_install(ii):
         commands = []
+
+        if ii in repositories and distro in repositories[ii]:
+            repo = repositories[ii][distro]
+            commands.append(add_repo_command(repo, distro))
+
         if ii in install_as and distro in install_as[ii]:
             to_install_as = install_as[ii][distro]
-            commands = [install_command(to_install_as, distro)]
+            commands.append(install_command(to_install_as, distro))
         elif ii in install_as and "all" in install_as[ii]:
             to_install_as = install_as[ii]["all"]
-            commands = [install_command(to_install_as, distro)]
+            commands.append(install_command(to_install_as, distro))
         elif ii in git_installs and distro in git_installs[ii]:
-            commands = setup_git_commands(ii, git_installs[ii][distro])
+            commands += setup_git_commands(ii, git_installs[ii][distro])
         elif ii in git_installs and "all" in git_installs[ii]:
-            commands = setup_git_commands(ii, git_installs[ii]["all"])
+            commands += setup_git_commands(ii, git_installs[ii]["all"])
         elif ii in shell_installs and distro in shell_installs[ii]:
-            commands = setup_shell_commands(ii, shell_installs[ii][distro])
+            commands += setup_shell_commands(ii, shell_installs[ii][distro])
         elif ii in shell_installs and "all" in shell_installs[ii]:
-            commands = setup_shell_commands(ii, shell_installs[ii]["all"])
+            commands += setup_shell_commands(ii, shell_installs[ii]["all"])
         else:
-            commands = [(install_command(ii, distro))]
+            commands += [(install_command(ii, distro))]
         return commands
 
     if git_installs:
