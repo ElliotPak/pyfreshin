@@ -5,11 +5,15 @@ import sys
 import re
 import platform
 import json
+import subprocess
+import os
+import os.path
 
 def get_args():
     argsetup = argparse.ArgumentParser()
     argsetup.add_argument("-d", "--distro", help="Specify a different distro", action="store")
     argsetup.add_argument("-p", "--preview", help="Output commands instead of running them", action="store_true")
+    argsetup.add_argument("-f", "--force", help="Install programs that are already installed", action="store_true")
     argsetup.add_argument("file", help="File to read dependencies from", action="store")
     args = argsetup.parse_args()
     if len(sys.argv) <= 1:
@@ -86,6 +90,21 @@ def parse_install_file(contents):
             'shell-installs': shell_installs,
             'repositories': repositories}
 
+def get_installed_packages(distro):
+    installed = set()
+    paths = os.environ["PATH"].split(os.pathsep)
+    for path in paths:
+        for exe in os.listdir(path):
+            if os.access(os.path.join(path, exe), os.X_OK):
+                installed.add(exe)
+    if distro == "ubuntu":
+        output = subprocess.check_output(["dpkg", "--get-selections"]).decode("utf-8")
+        for ii in output.split('\n'):
+            match = re.match(r'([A-Za-z0-9\-]+)(:\S+)?\s*install', ii)
+            if match:
+                installed.add(match.group(1))
+    return installed
+
 def get_indented_packages(line):
     return line.strip().split()
 
@@ -124,7 +143,7 @@ def add_repo_command(repo, distro):
     else:
         return ""
 
-def convert_to_commands(args, info, distro, cat_to_install = None):
+def convert_to_commands(args, info, distro, preinstalled, cat_to_install = None):
     commands = []
     installed = []
     categories = info["categories"]
@@ -166,19 +185,20 @@ def convert_to_commands(args, info, distro, cat_to_install = None):
     for cat in categories:
         if not cat_to_install or cat in cat_to_install:
             for ii in categories[cat]:
-                if ii in dependencies and "all" in dependencies[ii]:
-                    for jj in dependencies[ii]["all"]:
-                        if not jj in installed:
-                            commands = commands + add_install(jj)
-                            installed.append(jj)
-                elif ii in dependencies and distro in dependencies[ii]:
-                    for jj in dependencies[ii][distro]:
-                        if not jj in installed:
-                            commands = commands + add_install(jj)
-                            installed.append(jj)
-                if not ii in installed:
-                    commands = commands + add_install(ii)
-                    installed.append(ii)
+                if not ii in preinstalled:
+                    if ii in dependencies and "all" in dependencies[ii]:
+                        for jj in dependencies[ii]["all"]:
+                            if not jj in installed:
+                                commands = commands + add_install(jj)
+                                installed.append(jj)
+                    elif ii in dependencies and distro in dependencies[ii]:
+                        for jj in dependencies[ii][distro]:
+                            if not jj in installed:
+                                commands = commands + add_install(jj)
+                                installed.append(jj)
+                    if not ii in installed:
+                        commands = commands + add_install(ii)
+                        installed.append(ii)
 
     return commands
 
@@ -194,8 +214,12 @@ def main():
     distro = determine_distro()
     if args.distro:
         distro = args.distro
+    if args.force:
+        installed = set()
+    else:
+        installed = get_installed_packages(distro)
     info = parse_install_file(file_contents(args.file))
-    commands = convert_to_commands(args, info, distro)
+    commands = convert_to_commands(args, info, distro, installed)
     if args.preview:
         for ii in commands:
             print(ii)
