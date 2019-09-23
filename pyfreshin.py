@@ -227,7 +227,7 @@ def convert_to_commands(args, info, distro, preinstalled):
         shell_install_commands = distro_or_all(distro, ii, shell_installs)
         git_install_commands = distro_or_all(distro, ii, git_installs)
         if install_as_commands:
-            commands.append(install_as_commands)
+            commands.append(install_command(install_as_commands, distro))
         elif git_install_commands:
             commands += setup_git_commands(ii, git_install_commands)
         elif git_install_commands:
