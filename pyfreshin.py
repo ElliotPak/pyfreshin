@@ -15,6 +15,10 @@ def get_args():
     argsetup.add_argument("-d", "--distro", help="Specify a different distro", action="store")
     argsetup.add_argument("-s", "--show", help="Output commands instead of running them", action="store_true")
     argsetup.add_argument("-f", "--force", help="Install programs that are already installed", action="store_true")
+    argsetup.add_argument("-xc", "--exclude-cat", help="Exclude categories (comma-separated)", action="store")
+    argsetup.add_argument("-xp", "--exclude-pack", help="Exclude packages (comma-separated)", action="store")
+    argsetup.add_argument("-oc", "--only-cat", help="Install only these categories (comma-separated)", action="store")
+    argsetup.add_argument("-op", "--only-pack", help="Install only these packages (comma-separated)", action="store")
     argsetup.add_argument("file", help="File to read dependencies from", action="store")
     args = argsetup.parse_args()
     if len(sys.argv) <= 1:
@@ -201,7 +205,7 @@ def distro_or_all(distro, ii, dictionary):
 def convert_to_commands(args, info, distro, preinstalled):
     commands = OrderedDict()
     installed = set()
-    categories = info["categories"]
+    pack_to_install = info["pack-to-install"]
     dependencies = info["dependencies"]
     git_installs = info["git-installs"]
     shell_installs = info["shell-installs"]
@@ -265,26 +269,39 @@ def convert_to_commands(args, info, distro, preinstalled):
     if git_installs:
         ensure_installed("git")
 
-    for cat in categories:
-        for ii in categories[cat]:
-            inst_commands = ensure_installed(ii)
-            if inst_commands:
-                commands[ii] = inst_commands
+    for ii in pack_to_install:
+        inst_commands = ensure_installed(ii)
+        if inst_commands:
+            commands[ii] = inst_commands
 
     return commands
 
-def filter_commands(commands, categories, cat_to_install = None, package_to_install = None):
+def parse_filter_lists(args):
+    '''
+    Take command line arguments that specify package and category blacklists/whitelists and convert to a better format
+    '''
+    exclude_cat = args.exclude_cat.split(",") if args.exclude_cat else None
+    only_cat = args.only_cat.split(",") if args.only_cat else None
+    exclude_pack = args.exclude_pack.split(",") if args.exclude_pack else None
+    only_pack = args.only_pack.split(",") if args.only_pack else None
+    return (exclude_cat, exclude_pack, only_cat, only_pack)
+
+def filter_commands(info, exclude_cat = None, exclude_pack = None,
+                    only_cat = None, only_pack = None):
     '''
     Filter out commands that either not meant to be installed or that belong to
     categories that are not meant to be installed.
     '''
-    filtered = OrderedDict()
-    for cat in categories:
-        if (not cat_to_install or cat in cat_to_install):
-            for ii in categories[cat]:
-                if (not package_to_install or ii in package_to_install) and ii in commands:
-                    filtered[ii] = commands[ii]
-    return filtered
+    filtered = []
+    for cat in info["categories"]:
+        valid_cat = (not exclude_cat or not cat in exclude_cat) and (not only_cat or cat in only_cat)
+        if valid_cat:
+            for ii in info["categories"][cat]:
+                valid_pack = (not exclude_pack or not ii in exclude_pack) and (not only_pack or ii in only_pack)
+                if valid_pack:
+                    filtered.append(ii)
+    info["pack-to-install"] = filtered
+    return info
 
 def print_commands(commands):
     '''
@@ -320,10 +337,11 @@ def main():
     else:
         installed = get_installed_packages(distro)
     info = parse_install_file(file_contents(args.file))
-    commands = convert_to_commands(args, info, distro, installed)
-    commands_filtered = filter_commands(commands, info["categories"])
+    exclude_cat, exclude_pack, only_cat, only_pack = parse_filter_lists(args)
+    info_filtered = filter_commands(info, exclude_cat, exclude_pack, only_cat, only_pack)
+    commands = convert_to_commands(args, info_filtered, distro, installed)
     if args.show:
-        print_commands(commands_filtered)
+        print_commands(commands)
 
 if __name__ == "__main__":
     main()
