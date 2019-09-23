@@ -303,6 +303,13 @@ def filter_commands(info, exclude_cat = None, exclude_pack = None,
     info["pack-to-install"] = filtered
     return info
 
+def determine_distro():
+    '''
+    Determine the distro of your machine. Stubbed for now! Specify it in the
+    command line arguments.
+    '''
+    return "ubuntu"
+
 def print_commands(commands):
     '''
     Print commands in a pretty way.
@@ -317,12 +324,14 @@ def print_commands(commands):
             for dd in commands[cc]:
                 print("    " + dd)
 
-def determine_distro():
+def execute_commands(commands):
     '''
-    Determine the distro of your machine. Stubbed for now! Specify it in the
-    command line arguments.
+    Execute commands to install each package.
     '''
-    return "ubuntu"
+    for cc in commands:
+        print(f"Installing \"{cc}\"...")
+        subprocess.run(["bash", "-c", "\n".join(commands[cc])])
+        print(f"Done.")
 
 def main():
     '''
@@ -342,6 +351,8 @@ def main():
     commands = convert_to_commands(args, info_filtered, distro, installed)
     if args.show:
         print_commands(commands)
+    else:
+        execute_commands(commands)
 
 if __name__ == "__main__":
     main()
