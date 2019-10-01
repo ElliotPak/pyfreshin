@@ -190,6 +190,16 @@ def repo_command(repo, distro):
     else:
         return ""
 
+def update_commands(distro):
+    '''
+    Get the commands to update a package manager's cache and update existing
+    packages.
+    '''
+    if distro == "ubuntu":
+        return ["sudo apt-get update -y", "sudo apt-get upgrade"]
+    else:
+        return ""
+
 def distro_or_all(distro, ii, dictionary):
     '''
     Return the distro-specific or general entry from the dictionary, given a
@@ -212,6 +222,7 @@ def convert_to_commands(args, info, distro, preinstalled):
     install_as = info["install-as"]
     repositories = info["repositories"]
     installed_exes = info["installed-exes"]
+    repo_commands = set()
 
     def install_commands(ii):
         '''
@@ -221,7 +232,7 @@ def convert_to_commands(args, info, distro, preinstalled):
 
         if ii in repositories and distro in repositories[ii]:
             repo = repositories[ii][distro]
-            commands.append(repo_command(repo, distro))
+            repo_commands.add(repo_command(repo, distro))
 
         install_as_commands = distro_or_all(distro, ii, install_as)
         shell_install_commands = distro_or_all(distro, ii, shell_installs)
@@ -273,6 +284,14 @@ def convert_to_commands(args, info, distro, preinstalled):
         inst_commands = ensure_installed(ii)
         if inst_commands:
             commands[ii] = inst_commands
+
+    if commands:
+        pre_commands = list(repo_commands) + update_commands(distro)
+        old_commands = commands
+        commands = OrderedDict()
+        commands["Pre-installation"] = pre_commands
+        for ii in old_commands:
+            commands[ii] = old_commands[ii]
 
     return commands
 
