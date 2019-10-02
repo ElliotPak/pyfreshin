@@ -347,6 +347,9 @@ def execute_commands(commands):
     '''
     Execute commands to install each package.
     '''
+    # create temp directory if it doesnt exist
+    if not os.path.exists("/tmp/pyfreshin"):
+        os.makedirs("/tmp/pyfreshin")
     for cc in commands:
         print(f"Installing \"{cc}\"...")
         subprocess.run(["bash", "-c", "\n".join(commands[cc])])
