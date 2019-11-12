@@ -160,3 +160,25 @@ installs-paths PLATFORM PACKAGE_NAME
 Instead of checking if PACKAGE_NAME is installed, it checks if anything exists
 at the provided paths, in addition to anything specified by
 `installs-executables`.
+
+### `pre-install`
+
+```
+pre-install PLATFORM PACKAGE_NAME [RUN_DIRECTORY]
+    commands...
+```
+
+Runs the given commands before installing the given package. You can optionally
+specify a directory to run these commands in: by default they will run in the
+current working directory.
+
+### `post-install`
+
+```
+post-install PLATFORM PACKAGE_NAME [RUN_DIRECTORY]
+    commands...
+```
+
+Runs the given commands after installing the given package. You can optionally
+specify a directory to run these commands in: by default they will run in the
+current working directory.

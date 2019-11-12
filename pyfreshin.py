@@ -46,6 +46,8 @@ def parse_install_file(contents):
     repositories = {}
     installed_exes = {}
     installed_paths = {}
+    pre_install = {}
+    post_install = {}
     lines = contents.splitlines()
     for index, line in enumerate(lines):
         segments = line.split()
@@ -114,6 +116,26 @@ def parse_install_file(contents):
                     installed_paths[segments[2]] = {}
                 installed_paths[segments[2]][segments[1]] = exes
 
+            # pre-install PLATFORM PACKAGE_NAME [RUN_DIRECTORY]
+            #     commands...
+            elif segments[0] == "pre-install" and len(segments) > 2:
+                inst = {'commands': get_indented_commands(lines, index)}
+                if len(segments) > 3:
+                    inst['run-dir'] = segments[3]
+                if not segments[2] in shell_installs:
+                    pre_install[segments[2]] = {}
+                pre_install[segments[2]][segments[1]] = inst
+
+            # post-install PLATFORM PACKAGE_NAME [RUN_DIRECTORY]
+            #     commands...
+            elif segments[0] == "post-install" and len(segments) > 2:
+                inst = {'commands': get_indented_commands(lines, index)}
+                if len(segments) > 3:
+                    inst['run-dir'] = segments[3]
+                if not segments[2] in shell_installs:
+                    post_install[segments[2]] = {}
+                post_install[segments[2]][segments[1]] = inst
+
     return {'categories': categories,
             'dependencies': dependencies,
             'install-as': install_as,
@@ -121,7 +143,9 @@ def parse_install_file(contents):
             'shell-installs': shell_installs,
             'repositories': repositories,
             'installed-exes': installed_exes,
-            'installed-paths': installed_paths}
+            'installed-paths': installed_paths,
+            'pre-install': pre_install,
+            'post-install': post_install}
 
 def get_installed_packages(distro):
     '''
@@ -243,6 +267,8 @@ def convert_to_commands(args, info, distro, preinstalled, is_forced):
     repositories = info["repositories"]
     installed_exes = info["installed-exes"]
     installed_paths = info["installed-paths"]
+    pre_install = info["pre-install"]
+    post_install = info["post-install"]
     repo_commands = set()
 
     def install_commands(ii):
@@ -266,6 +292,14 @@ def convert_to_commands(args, info, distro, preinstalled, is_forced):
             commands += setup_shell_commands(shell_install_commands)
         else:
             commands.append(install_command(ii, distro))
+
+        pre_install_commands = distro_or_all(distro, ii, pre_install)
+        post_install_commands = distro_or_all(distro, ii, post_install)
+        if pre_install_commands:
+            commands = setup_shell_commands(pre_install_commands) + commands
+        if post_install_commands:
+            commands += setup_shell_commands(post_install_commands)
+
         installed.add(ii)
         return commands
 
