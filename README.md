@@ -10,13 +10,21 @@ feel free to submit a pull request to add more).
 
 ## Usage
 
-Usage: `python pyfreshin.py [-h] [-d DISTRO] [-p] [-f] file`  
-With the following arguments:
+Usage: `python pyfreshin.py PATH_TO_FILE`  
+You may also supply the following arguments:
 
 - `-h`: Display help
 - `-d DISTRO`: Specify the Linux distribution manually
 - `-s`: Output commands instead of running them
 - `-f`: Reinstall programs that are already installed
+- `-xc CATS`: Don't install packages in the given categories. `CATS` should
+  have no spaces and be a comma-separated list of categories.
+- `-xp PACKS`: Don't install the given packages. `PACKS` should have no spaces
+  and be a comma-separated list of packages.
+- `-oc CATS`: Only install packages in the given categories. `CATS` should have
+  no spaces and be a comma-separated list of categories.
+- `-op PACKS`: Only install the given packages. `PACKS` should have no spaces
+  and be a comma-separated list of categories.
 
 ## Specifying the installation file
 
