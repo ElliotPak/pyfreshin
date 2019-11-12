@@ -139,5 +139,16 @@ installs-executables PLATFORM PACKAGE_NAME
     exe1 exe2 exe3...
 ```
 
-This package is considered install on this distro if the specified executables
-are installed on the machine, regardless of any other checks.
+Instead of checking if PACKAGE_NAME is installed, it checks if the provided
+exes are installed, in addition to anything specified by `installs-paths`.
+
+### `installs-paths`
+
+```
+installs-paths PLATFORM PACKAGE_NAME
+    path1 path2 path3...
+```
+
+Instead of checking if PACKAGE_NAME is installed, it checks if anything exists
+at the provided paths, in addition to anything specified by
+`installs-executables`.

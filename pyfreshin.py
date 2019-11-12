@@ -45,6 +45,7 @@ def parse_install_file(contents):
     shell_installs = {}
     repositories = {}
     installed_exes = {}
+    installed_paths = {}
     lines = contents.splitlines()
     for index, line in enumerate(lines):
         segments = line.split()
@@ -105,13 +106,22 @@ def parse_install_file(contents):
                     installed_exes[segments[2]] = {}
                 installed_exes[segments[2]][segments[1]] = exes
 
+            # installs-paths PLATFORM PACKAGE_NAME
+            #     path1 path2 path3...
+            elif segments[0] == "installs-paths" and len(segments) > 2:
+                exes = get_indented_packages(lines[index + 1])
+                if not segments[2] in installed_paths:
+                    installed_paths[segments[2]] = {}
+                installed_paths[segments[2]][segments[1]] = exes
+
     return {'categories': categories,
             'dependencies': dependencies,
             'install-as': install_as,
             'git-installs': git_installs,
             'shell-installs': shell_installs,
             'repositories': repositories,
-            'installed-exes': installed_exes}
+            'installed-exes': installed_exes,
+            'installed-paths': installed_paths}
 
 def get_installed_packages(distro):
     '''
@@ -212,6 +222,13 @@ def distro_or_all(distro, ii, dictionary):
     else:
         return []
 
+def path_exists(path):
+    '''
+    Return true if the given path exists. Auto-replaces ~ at the beginning with
+    the home directory.
+    '''
+    return os.path.exists(os.path.expanduser(path))
+
 def convert_to_commands(args, info, distro, preinstalled):
     commands = OrderedDict()
     installed = set()
@@ -222,6 +239,7 @@ def convert_to_commands(args, info, distro, preinstalled):
     install_as = info["install-as"]
     repositories = info["repositories"]
     installed_exes = info["installed-exes"]
+    installed_paths = info["installed-paths"]
     repo_commands = set()
 
     def install_commands(ii):
@@ -248,16 +266,28 @@ def convert_to_commands(args, info, distro, preinstalled):
         installed.add(ii)
         return commands
 
-    def not_installed(ii):
+    def is_installed(ii):
         '''
-        Returns true if a package is not installed.
+        Returns true if a package is installed.
         '''
+        if not ii in installed_exes and not ii in installed_paths:
+            return ii in preinstalled
+
         if not ii in installed_exes:
-            return not ii in preinstalled
+            exes = True
         elif distro in installed_exes[ii]:
-            return not all([jj in preinstalled for jj in installed_exes[ii][distro]])
+            exes = all([jj in preinstalled for jj in installed_exes[ii][distro]])
         elif "all" in installed_exes[ii]:
-            return not all([jj in preinstalled for jj in installed_exes[ii]["all"]])
+            exes = all([jj in preinstalled for jj in installed_exes[ii]["all"]])
+
+        if not ii in installed_paths:
+            paths = True
+        elif distro in installed_paths[ii]:
+            paths = all([path_exists(jj) for jj in installed_paths[ii][distro]])
+        elif "all" in installed_paths[ii]:
+            paths = all([path_exists(jj) for jj in installed_paths[ii]["all"]])
+
+        return exes and paths
 
     def ensure_installed(ii):
         '''
@@ -265,7 +295,7 @@ def convert_to_commands(args, info, distro, preinstalled):
         the package itself.
         '''
         commands = []
-        if not_installed(ii):
+        if not is_installed(ii):
             if ii in dependencies and distro in dependencies[ii]:
                 for jj in dependencies[ii][distro]:
                     if not jj in installed:
