@@ -196,7 +196,7 @@ def update_commands(distro):
     packages.
     '''
     if distro == "ubuntu":
-        return ["sudo apt-get update -y", "sudo apt-get upgrade"]
+        return ["sudo apt-get update -y", "sudo apt-get upgrade -y"]
     else:
         return ""
 
