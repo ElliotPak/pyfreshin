@@ -184,11 +184,14 @@ def setup_git_commands(ii, git_info):
     commands = commands + git_info["commands"]
     return commands
 
-def setup_shell_commands(ii, shell_info):
+def setup_shell_commands(shell_info):
     '''
-    Given a package and shell info, creates the commands to install it.
+    Given shell info for a package, creates the commands to install it.
     '''
-    return shell_info["commands"]
+    commands = []
+    if "run-dir" in commands:
+        commands.append("cd " + commands["run-dir"])
+    return commands + shell_info["commands"]
 
 def repo_command(repo, distro):
     '''
@@ -260,7 +263,7 @@ def convert_to_commands(args, info, distro, preinstalled):
         elif git_install_commands:
             commands += setup_git_commands(ii, git_install_commands)
         elif shell_install_commands:
-            commands += setup_shell_commands(ii, shell_install_commands)
+            commands += setup_shell_commands(shell_install_commands)
         else:
             commands.append(install_command(ii, distro))
         installed.add(ii)
