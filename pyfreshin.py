@@ -232,7 +232,7 @@ def path_exists(path):
     '''
     return os.path.exists(os.path.expanduser(path))
 
-def convert_to_commands(args, info, distro, preinstalled):
+def convert_to_commands(args, info, distro, preinstalled, is_forced):
     commands = OrderedDict()
     installed = set()
     pack_to_install = info["pack-to-install"]
@@ -283,7 +283,9 @@ def convert_to_commands(args, info, distro, preinstalled):
         elif "all" in installed_exes[ii]:
             exes = all([jj in preinstalled for jj in installed_exes[ii]["all"]])
 
-        if not ii in installed_paths:
+        if is_forced:
+            return False
+        elif not ii in installed_paths:
             paths = True
         elif distro in installed_paths[ii]:
             paths = all([path_exists(jj) for jj in installed_paths[ii][distro]])
@@ -403,7 +405,7 @@ def main():
     info = parse_install_file(file_contents(args.file))
     exclude_cat, exclude_pack, only_cat, only_pack = parse_filter_lists(args)
     info_filtered = filter_commands(info, exclude_cat, exclude_pack, only_cat, only_pack)
-    commands = convert_to_commands(args, info_filtered, distro, installed)
+    commands = convert_to_commands(args, info_filtered, distro, installed, args.force)
     if args.show:
         print_commands(commands)
     else:
